@@ -3624,10 +3624,16 @@ no_journal:
 	}
 #ifdef CONFIG_EXT4_LGE_JOURNAL_RECOVERY
 	mountOK=ext4_setup_super(sb, es, sb->s_flags & MS_RDONLY);
+	if (mountOK)
+		sb->s_flags |= MS_RDONLY;
 #else
-	ext4_setup_super(sb, es, sb->s_flags & MS_RDONLY);
+	if (ext4_setup_super(sb, es, sb->s_flags & MS_RDONLY))
+		sb->s_flags |= MS_RDONLY;
 #endif
 
+
+	if (ext4_setup_super(sb, es, sb->s_flags & MS_RDONLY))
+		sb->s_flags |= MS_RDONLY;
 
 	/* determine the minimum size of new large inodes, if present */
 	if (sbi->s_inode_size > EXT4_GOOD_OLD_INODE_SIZE) {
