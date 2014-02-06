@@ -1,0 +1,46 @@
+diff --git a/BoardConfigCommon.mk b/BoardConfigCommon.mk
+index 62af376..0b060f1 100644
+--- a/BoardConfigCommon.mk
++++ b/BoardConfigCommon.mk
+@@ -95,7 +95,10 @@ TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
+ BOARD_HAS_NO_SELECT_BUTTON := true
+ COMMON_GLOBAL_CFLAGS += -DNO_SECURE_DISCARD
+ 
+-TARGET_USERIMAGES_USE_EXT4 := true
++# TARGET_USERIMAGES_USE_EXT4 := true
++# Thanks: github.com/razrqcom-dev-team/android_device_motorola_msm8960dt-common
++# Encryption might work, but I disabled it in fstab.g2, and don't feel like wiping /data again to test it as I don't use it.
++TARGET_USERIMAGES_USE_F2FS := true
+ BOARD_BOOTIMAGE_PARTITION_SIZE := 23068672 # 22M
+ BOARD_RECOVERYIMAGE_PARTITION_SIZE := 23068672 # 22M
+ BOARD_SYSTEMIMAGE_PARTITION_SIZE := 880803840 # 840M
+diff --git a/fstab.g2 b/fstab.g2
+index 4abca0d..b8bf1e7 100644
+--- a/fstab.g2
++++ b/fstab.g2
+@@ -1,7 +1,7 @@
+ /dev/block/platform/msm_sdcc.1/by-name/boot         /boot           emmc    defaults                                                        defaults
+ /dev/block/platform/msm_sdcc.1/by-name/recovery     /recovery       emmc    defaults                                                        defaults
+ /dev/block/platform/msm_sdcc.1/by-name/system         /system      ext4    ro,barrier=1                                wait,check
+-/dev/block/platform/msm_sdcc.1/by-name/userdata       /data        ext4    nosuid,nodev,barrier=1,noauto_da_alloc,errors=continue      wait,check,encryptable=/dev/block/platform/msm_sdcc.1/by-name/encrypt
++/dev/block/platform/msm_sdcc.1/by-name/userdata       /data        f2fs    rw,discard,nosuid,nodev,noatime,nodiratime,inline_xattr,errors=continue      wait,check
+ 
+ /dev/block/platform/msm_sdcc.1/by-name/cache /cache ext4 nosuid,nodev,barrier=1,noauto_da_alloc,errors=continue wait
+ /dev/block/platform/msm_sdcc.1/by-name/persist /persist ext4 nosuid,nodev,barrier=1,noauto_da_alloc,errors=continue wait
+diff --git a/g2.mk b/g2.mk
+index 2ad3634..7752a9f 100644
+--- a/g2.mk
++++ b/g2.mk
+@@ -82,6 +82,12 @@ PRODUCT_PACKAGES += \
+     VisualizationWallpapers \
+     librs_jni
+ 
++# Utilities
++PRODUCT_PACKAGES += \
++    mkfs.f2fs \
++    fsck.f2fs \
++    fibmap.f2fs
++
+ # NFC packages
+ PRODUCT_PACKAGES += \
+     Tag \
