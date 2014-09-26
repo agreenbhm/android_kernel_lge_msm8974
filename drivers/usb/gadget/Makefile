@@ -35,8 +35,6 @@ obj-$(CONFIG_USB_FUSB300)	+= fusb300_udc.o
 obj-$(CONFIG_USB_MSM_72K)	+= msm72k_udc.o
 # LGE_CHANGE
 # LGE android usb framework
-# 2012-09-26, jinhyuck.kwon@lge.com
-#
 obj-$(CONFIG_USB_G_LGE_ANDROID)	+= u_lgeusb.o
 
 #

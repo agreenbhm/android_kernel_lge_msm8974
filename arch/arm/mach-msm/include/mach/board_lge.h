@@ -90,7 +90,7 @@ enum lge_boot_mode_type {
 	LGE_BOOT_MODE_FACTORY2,
 	LGE_BOOT_MODE_PIFBOOT,
 	LGE_BOOT_MODE_PIFBOOT2,
-	LGE_BOOT_MODE_MINIOS    /* LGE_UPDATE for MINIOS2.0 */
+	LGE_BOOT_MODE_MINIOS    /*                          */
 };
 
 int lge_get_factory_boot(void);
@@ -101,9 +101,9 @@ int lge_get_battery_low(void);
 #endif
 
 #if defined(CONFIG_LCD_KCAL)
-/* LGE_CHANGE_S
-* change code for LCD KCAL
-* 2013-05-08, seojin.lee@lge.com
+/*             
+                          
+                                
 */
 struct kcal_data {
 		int red;
@@ -172,9 +172,9 @@ void __init lge_add_lcd_misc_devices(void);
 #endif
 
 #if defined(CONFIG_LCD_KCAL)
-/* LGE_CHANGE_S
-* change code for LCD KCAL
-* 2013-05-08, seojin.lee@lge.com
+/*             
+                          
+                                
 */
 void __init lge_add_lcd_kcal_devices(void);
 #endif

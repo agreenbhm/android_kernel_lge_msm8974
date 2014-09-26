@@ -76,7 +76,6 @@ $(KERNEL_OUT):
 
 # LGE_CHANGE_S
 # porting bootchart2 to android
-# # byungchul.park@lge.com 20120620
 ifeq ($(INIT_BOOTCHART2),true)
 KERNEL_DEFCONFIG_PATH:=kernel/arch/arm/configs/$(KERNEL_DEFCONFIG)
 KERNEL_DEFCONFIG_BC2_PATH:=kernel/arch/arm/configs/bc2_$(KERNEL_DEFCONFIG)
@@ -115,7 +114,6 @@ endif
 
 # LGE_CHANGE_S
 # porting bootchart2 to android
-# byungchul.park@lge.com 20120620
 endif
 # LGE_CHANGE_E
 
