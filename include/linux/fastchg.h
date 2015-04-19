@@ -18,7 +18,11 @@
 #ifndef _LINUX_FASTCHG_H
 #define _LINUX_FASTCHG_H
 
+<<<<<<< HEAD
 #define FAST_CHARGE_VERSION "Version 2.7"
+=======
+#define FAST_CHARGE_VERSION "Version 2.6"
+>>>>>>> 9468ea3... Merge My Force Fast Charge code from my KK Kernel Version 2.6 for LP.
 
 extern int force_fast_charge;
 extern int force_fast_charge_temp;
