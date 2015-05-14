@@ -73,7 +73,8 @@
 #define SMB349_MASK(BITS, POS)  ((unsigned char)(((1 << BITS) - 1) << POS))
 
 #ifdef CONFIG_FORCE_FAST_CHARGE
-#include <linux/fastchg.h>
+//#include <linux/fastchg.h>
+#include "../../include/linux/fastchg.h"
 static DEFINE_MUTEX(smb349_fast_charge_lock);
 #endif
 
