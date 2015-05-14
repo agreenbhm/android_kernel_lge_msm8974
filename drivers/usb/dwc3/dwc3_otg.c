@@ -25,6 +25,11 @@
 #include "io.h"
 #include "xhci.h"
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+#include <linux/mutex.h>
+#include <linux/fastchg.h>
+#endif
+
 #ifdef CONFIG_LGE_PM
 #include <mach/board_lge.h>
 #include <linux/power_supply.h>
@@ -35,6 +40,11 @@
 #ifdef CONFIG_MACH_LGE
 #define PARAMETER_OVERRIDE_X_REG (0xF8814)
 #define DEFAULT_HSPHY_INIT (0x00D195A4) /* qcom,dwc-hsphy-init */
+#endif
+
+#ifdef CONFIG_FORCE_FAST_CHARGE
+int usb_power_curr_now = 500;
+static DEFINE_MUTEX(fast_charge_lock);
 #endif
 #define VBUS_REG_CHECK_DELAY	(msecs_to_jiffies(1000))
 #define MAX_INVALID_CHRGR_RETRY 3
@@ -562,7 +572,7 @@ static void dwc3_otg_notify_host_mode(struct usb_otg *otg, int host_mode)
 		power_supply_set_scope(dotg->psy, POWER_SUPPLY_SCOPE_DEVICE);
 }
 
-/* B2-BSP-USB@lge.com make psy getter and move it above power_supply_type setter. 2014-02-06 */
+/*                                                                                           */
 #if defined(CONFIG_LGE_PM) && !defined(CONFIG_USB_DWC3_LGE_SINGLE_PSY)
 static int dwc3_otg_get_psy(struct usb_phy *phy)
 {
@@ -674,7 +684,27 @@ static int dwc3_otg_set_power(struct usb_phy *phy, unsigned mA)
 
 	dev_info(phy->dev, "Avail curr from USB = %u\n", mA);
 
-/* B2-BSP-USB@lge.com make psy getter and move it above power_supply_type setter. 2014-02-06 */
+#if defined(CONFIG_FORCE_FAST_CHARGE) && !defined(CONFIG_SMB349_VZW_FAST_CHG)
+	mutex_lock(&fast_charge_lock);
+	usb_power_curr_now = mA;
+	if (mA > 300) {
+		if (force_fast_charge != force_fast_charge_temp)
+			force_fast_charge = force_fast_charge_temp;
+		dev_info(phy->dev, "Power plugged, FFC is set to = %d\n",
+				force_fast_charge);
+		smb349_thermal_mitigation_update(mA);
+	} else {
+		if (force_fast_charge != 0)
+			force_fast_charge_temp = force_fast_charge;
+		force_fast_charge = 0;
+		dev_info(phy->dev, "Power Unplugged, FFC is set to = %d\n",
+				force_fast_charge);
+		smb349_thermal_mitigation_update(300);
+	}
+	mutex_unlock(&fast_charge_lock);
+#endif
+
+/*                                                                                           */
 #ifdef CONFIG_LGE_PM
 #ifndef CONFIG_USB_DWC3_LGE_SINGLE_PSY
 	if (dwc3_otg_get_psy(phy) < 0)
@@ -985,8 +1015,20 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 					work = 1;
 					break;
 				case DWC3_SDP_CHARGER:
+#ifdef CONFIG_FORCE_FAST_CHARGE
+					if (force_fast_charge > 1)
+						dwc3_otg_set_power(phy,
+							fast_charge_level);
+					else if (force_fast_charge > 0)
+						dwc3_otg_set_power(phy,
+							DWC3_IDEV_CHG_MAX);
+					else
+						dwc3_otg_set_power(phy,
+								IUNIT);
+#else
 					dwc3_otg_set_power(phy,
 								IUNIT);
+#endif
 					dwc3_otg_start_peripheral(&dotg->otg,
 									1);
 					phy->state = OTG_STATE_B_PERIPHERAL;
@@ -1096,9 +1138,9 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 			phy->state = OTG_STATE_A_HOST;
 #ifdef CONFIG_LGE_PM
 			/*
-			 * sangmin978.lee@lge.com, 2013-03-18
-			 * For OTG, set usb as a current power supply on host mode.
-			 */
+                                        
+                                                              
+    */
 			dotg->psy = power_supply_get_by_name("usb");
 			if (!dotg->psy)
 				dev_err(phy->dev, "couldn't get usb power supply\n");
@@ -1336,10 +1378,9 @@ void dwc3_otg_exit(struct dwc3 *dwc)
 		kfree(dotg);
 		dwc->dotg = NULL;
 	}
-#if defined (CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4) || defined(CONFIG_TOUCHSCREEN_ATMEL_S540)
-#if defined (CONFIG_TOUCHSCREEN_SYNAPTICS_G2) || defined (CONFIG_MACH_MSM8974_TIGERS) || defined(CONFIG_MACH_MSM8974_B1_KR) || defined(CONFIG_MACH_MSM8974_B1W)
+
+#if defined (CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4) || defined(CONFIG_TOUCHSCREEN_ATMEL_S540) || defined (CONFIG_TOUCHSCREEN_SYNAPTICS_G2) || defined (CONFIG_MACH_MSM8974_TIGERS) || defined(CONFIG_MACH_MSM8974_B1_KR) || defined(CONFIG_MACH_MSM8974_B1W)
 	if (touch_otg_wq)
 		destroy_workqueue(touch_otg_wq);
-#endif
 #endif
 }
