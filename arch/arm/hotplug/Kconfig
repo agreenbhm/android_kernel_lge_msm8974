@@ -3,3 +3,4 @@ config INTELLI_PLUG
         default y
         help
           Generic Intelli-plug cpu hotplug driver for ARM SOCs
+
