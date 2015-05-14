@@ -72,6 +72,11 @@
 
 #define SMB349_MASK(BITS, POS)  ((unsigned char)(((1 << BITS) - 1) << POS))
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+#include <linux/fastchg.h>
+static DEFINE_MUTEX(smb349_fast_charge_lock);
+#endif
+
 /* Register definitions */
 #define CHG_CURRENT_REG                         0x00
 #define CHG_OTHER_CURRENT_REG                   0x01
@@ -695,6 +700,7 @@ rt_error:
 	return false;
 }
 
+static int power_source_state = 0;
 static bool smb349_is_charger_present(struct i2c_client *client)
 {
 	u8 irq_status_e;
@@ -716,12 +722,13 @@ static bool smb349_is_charger_present(struct i2c_client *client)
 
 	if (power_ok) {
 		voltage = smb349_get_usbin_adc();
+		power_source_state = 1;
 #if SMB349_BOOSTBACK_WORKAROUND
 		smb349_pr_info("DC is present. DC_IN volt:%d\n", voltage);
 #else
 		pr_err("DC is present. DC_IN volt:%d\n", voltage);
 #endif
-	} else
+	} else {
 		pr_err("DC is missing.\n");
 		power_source_state = 0;
 
@@ -1726,6 +1733,7 @@ smb349_set_thermal_chg_current_set(const char *val, struct kernel_param *kp)
 	int current_now = 0;
 	union power_supply_propval pwr = {0,};
 #endif
+
 	ret = param_set_int(val, kp);
 	if (ret) {
 		pr_err("error setting value %d\n", ret);
@@ -2295,7 +2303,7 @@ static void smb349_bb_worker(struct work_struct *work)
 	int ret;
 
 	chg_current = smb349_get_prop_batt_current_now(smb349_chg);
-	smb349_console_silent = 0;
+	smb349_console_silent = 1;
 
 	if (chg_current < DISCHARGE_CURRENT * 1000) {
 		pr_debug("discharging case\n");
@@ -2527,7 +2535,7 @@ static void smb349_bb_worker_trigger(struct smb349_struct *smb349_chg,
  */
 static void smb349_irq_worker(struct work_struct *work)
 {
-	u8 val;
+	u8 val = 0;
 	int ret = 0, usb_present = 0, host_mode;
 #if defined(CONFIG_BQ51053B_CHARGER) && defined(CONFIG_WIRELESS_CHARGER)
 	int wlc_present =0;
@@ -2845,7 +2853,7 @@ static int pm_power_get_property(struct power_supply *psy,
 	return 0;
 }
 
-#define SMB349_FAST_CHG_MIN_MA	1000
+#define SMB349_FAST_CHG_MIN_MA	400
 #define SMB349_FAST_CHG_STEP_MA	200
 #define SMB349_FAST_CHG_MAX_MA	4000
 #define SMB349_FAST_CHG_SHIFT	4
@@ -3483,6 +3491,9 @@ static int smb349_input_current_limit_set(struct smb349_struct *smb349_chg, int 
 {
 	int i;
 	u8 temp;
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	int custom_ma = icl_ma;
+#endif
 
 	if ((icl_ma < SMB349_INPUT_CURRENT_LIMIT_MIN_MA) ||
 		(icl_ma >  SMB349_INPUT_CURRENT_LIMIT_MAX_MA)) {
@@ -3541,6 +3552,9 @@ static int smb349_input_current_limit_set(struct smb349_struct *smb349_chg, int 
 		icl_ma = custom_ma;
 	}
 	temp = icl_ma_table[i].value;
+#else
+	temp = icl_ma_table[i].value;
+#endif
 
 	pr_info("input current limit=%d setting %02x\n", icl_ma, temp);
 	return smb349_masked_write(smb349_chg->client, CHG_CURRENT_REG,
@@ -3558,7 +3572,7 @@ static struct input_current_ma_limit_entry pchg_ma_table[] = {
 };
 
 #define SMB349_PRE_CHG_CURRENT_LIMIT_MIN_MA     100
-#define SMB349_PRE_CHG_CURRENT_LIMIT_MAX_MA     700
+#define SMB349_PRE_CHG_CURRENT_LIMIT_MAX_MA     900
 #define SMB349_PRE_CHG_CURRENT_LIMIT_DEFAULT    300
 static int
 smb349_set_pre_chg_current(struct smb349_struct *smb349_chg, int pchg_ma)
@@ -4378,6 +4392,7 @@ static void smb349_status_print(struct smb349_struct *smb349_chg)
 	smb349_chg->batt_psy.get_property(&(smb349_chg->batt_psy),
 			  POWER_SUPPLY_PROP_CHARGE_TYPE, &ret);
 
+#if 0
 	printk(KERN_ERR "[chglog]EN:%d ERR:%d STAT:%c M:%c U:%d EOC:%d RE:%d BL:%c BO:%d BM:%d HOFF:%d TO:%c SYS:%d IT:%d TEMP:0x%02X PSY:[PRE:%d,ON:%d-%d,TYP:%d]\n",
 			val_3d & BIT(0)? 1: 0,		/* EN:charging enable */
 			val_3d & BIT(6)? 1: 0,		/* ERR:charging error */
@@ -4398,6 +4413,7 @@ static void smb349_status_print(struct smb349_struct *smb349_chg)
 			smb349_chg->usb_online, smb349_chg->ac_online, /* ON: power_supply online usb_online-ac_online */
 			ret.intval			/* TYP: power_supply charger type*/
 		);
+#endif
 }
 #endif
 
@@ -4405,6 +4421,9 @@ static void smb349_status_print(struct smb349_struct *smb349_chg)
 static int temp_before = 0;
 static void smb349_monitor_batt_temp(struct work_struct *work)
 {
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	int batt_charge = 0;
+#endif
 	struct smb349_struct *smb349_chg =
 		container_of(work, struct smb349_struct, battemp_work.work);
 	struct charging_info req;
@@ -4462,7 +4481,30 @@ static void smb349_monitor_batt_temp(struct work_struct *work)
 
 	req.is_charger = smb349_is_charger_present(smb349_chg->client);
 
-	lge_monitor_batt_temp(req, &res);
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	/*
+	 * Update force fast charge auto on/off status
+	 * every time temp check is running when not in suspend.
+	 */
+	mutex_lock(&smb349_fast_charge_lock);
+	if (usb_power_curr_now > 300) {
+		batt_charge = smb349_get_prop_batt_capacity(smb349_chg);
+		if (batt_charge >= 95) {
+			if (force_fast_charge != 0) {
+				force_fast_charge_on_off = force_fast_charge;
+				force_fast_charge = 0;
+				pr_info("thermal-engine: FFC disabled! battery is above 95 percent\n");
+			}
+		} else {
+			if (force_fast_charge != force_fast_charge_on_off)
+				force_fast_charge = force_fast_charge_on_off;
+		}
+	}
+	mutex_unlock(&smb349_fast_charge_lock);
+#endif
+
+	if (power_source_state)
+		lge_monitor_batt_temp(req, &res);
 
 #if SMB349_STATUS_DEBUG
 	smb349_status_print(smb349_chg);
